@@ -5,5 +5,39 @@ output: github_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+```
+
+#Problem 1
+Create an aggregate dataset which combines separate dataset for each individual
+
+```{r}
+
+load_file = function (file_name) {
+  
+  path_base = "./data/"
+  complete_path = str_c(path_base, file_name)
+  read_csv(complete_path)
+}
+
+separate_files = 
+  tibble(
+    file_name = list.files("./data"))
+
+longitudal_study = separate_files%>%
+  mutate(patient_data = map(file_name, load_file))%>%
+  unnest()%>%
+  gather(key = week, value = observation, week_1:week_8)%>%
+  separate(file_name, into = c("arm", "subject_id", "csv"), sep = "[_.]")%>%
+  separate(week, into = c("remove", "week"), sep = "_")%>%
+  select(-c(csv, remove))
+
+longitudal_study%>%
+  ggplot(aes(as.integer(week), observation, color = subject_id))+
+  geom_point()+
+  geom_line()+
+  facet_grid(.~arm)
+
 ```
 
