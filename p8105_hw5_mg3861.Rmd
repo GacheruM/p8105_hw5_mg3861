@@ -34,10 +34,101 @@ longitudal_study = separate_files%>%
   select(-c(csv, remove))
 
 longitudal_study%>%
+  mutate(arm = recode(arm, "con" = "Control",
+                            "exp" = "Experimental"))%>%
   ggplot(aes(as.integer(week), observation, color = subject_id))+
   geom_point()+
   geom_line()+
-  facet_grid(.~arm)
+  facet_grid(.~arm)+
+  labs(
+    x = "Week",
+    y = "Observation",
+    title = "Observation on Each Subject over Time")+
+  theme(legend.position="none") 
 
+  
+
+```
+
+#Problem 2
+
+Describe the raw data
+```{r}
+url = "https://raw.githubusercontent.com/washingtonpost/data-homicides/master/homicide-data.csv"
+homicide_data = read_csv(url)
+
+```
+
+Create a city-state variable and then summarize within cities to obtain the total number of homicides and the number of unsolved homicides (closed without arrest or open/no arrest)
+
+```{r}
+
+homicides_number = function (data){
+  length(data$disposition)
+}
+
+unsolved_number = function (data){
+  data%>%
+    filter(disposition %in% c("Closed without arrest", "Open/No arrest"))%>%
+    nrow()
+}
+
+tidy_homicide_data = 
+  homicide_data%>%
+  mutate(city_state = str_c(city, ", ", state))%>%
+  select(city_state, everything())%>%
+  nest(uid:disposition)%>%
+  mutate(total_homicides = map(data, homicides_number),
+         unsolved_homicides = map(data, unsolved_number))%>%
+  mutate(total_homicides = as.integer(total_homicides),
+         unsolved_homicides = as.integer(unsolved_homicides))
+
+tidy_homicide_data%>%
+  select(-data)%>%
+  knitr::kable()
+  
+```
+
+Estimate proportions and confidence intervals of unsolved homicides in Baltimore, MD
+
+```{r}
+tidy_homicide_data%>%
+  filter(city_state == "Baltimore, MD")%>%
+  select(-data)%>%
+  mutate(proportion_test = map2(.x = unsolved_homicides, .y = total_homicides, ~prop.test(x = .x, n = .y)),
+         proportion_test = map(proportion_test, broom::tidy))%>%
+  unnest()%>%
+  select(city_state, estimate, conf.low, conf.high)%>%
+  knitr::kable(digits = 3)
+
+```
+
+Estimate proportions and confidence intervals of unsolved homicides in each city (TULSA, AL doesn't exist - take it out??)
+
+```{r}
+
+proportions = tidy_homicide_data%>%
+  select(city_state, unsolved_homicides, total_homicides)%>%
+  mutate(proportion_test = map2(.x = unsolved_homicides, .y = total_homicides, ~prop.test(x = .x, n = .y)),
+         proportion_test = map(proportion_test, broom::tidy))%>%
+  unnest()%>%
+  select(city_state, estimate, conf.low, conf.high)
+
+proportions%>%
+  knitr::kable(digits = 3)
+ 
+```
+
+Create a plot that shows the proportion and CIs for each city
+
+```{r}
+
+proportions%>%
+  ggplot(aes(x = city_state, y = estimate))+
+  geom_point()+
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high))+
+  theme(
+        axis.text.x = element_text(angle = 90, hjust = 1))
+  
 ```
 
