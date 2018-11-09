@@ -122,9 +122,9 @@ proportions%>%
 Create a plot that shows the proportion and CIs for each city
 
 ```{r}
-
 proportions%>%
-  ggplot(aes(x = city_state, y = estimate))+
+  filter(city_state != "Tulsa, AL")%>%
+  ggplot(aes(reorder(city_state, estimate), estimate))+
   geom_point()+
   geom_errorbar(aes(ymin = conf.low, ymax = conf.high))+
   theme(
