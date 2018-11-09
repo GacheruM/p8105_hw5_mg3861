@@ -1,5 +1,6 @@
 ---
 title: "Homework 5"
+author: "Margaret Gacheru"
 output: github_document
 ---
 
@@ -10,9 +11,9 @@ library(tidyverse)
 ```
 
 #Problem 1
-Create an aggregate dataset which combines separate dataset for each individual
+Creating an aggregate dataset for a longitudinal study: data for each participant is included in a separate file and the file names include the participant's ID and treatment arm
 
-```{r}
+```{r warning = FALSE, message = FALSE}
 
 load_file = function (file_name) {
   
@@ -32,6 +33,13 @@ longitudal_study = separate_files%>%
   separate(file_name, into = c("arm", "subject_id", "csv"), sep = "[_.]")%>%
   separate(week, into = c("remove", "week"), sep = "_")%>%
   select(-c(csv, remove))
+longitudal_study
+
+```
+
+Making a spaghetti plot that compares each subject's observations over time across the different treatment arms
+
+```{r}
 
 longitudal_study%>%
   mutate(arm = recode(arm, "con" = "Control",
@@ -50,16 +58,23 @@ longitudal_study%>%
 
 ```
 
+In general, there is a notable increase in the observation scores as time progresses in the experimental group. In the control group, the general trend is that the observation scores are relatively similar in week 1 and week 8. While statistical tests are required to determine if the experimental group experienced a significant increase, the graph suggest that the treatment in the experiment group is more effective. 
+
+
 #Problem 2
 
-Describe the raw data
-```{r}
+This dataset contains information on homicides in 50 large ctiies across the country.
+
+```{r warning = FALSE, message = FALSE}
 url = "https://raw.githubusercontent.com/washingtonpost/data-homicides/master/homicide-data.csv"
 homicide_data = read_csv(url)
 
 ```
 
-Create a city-state variable and then summarize within cities to obtain the total number of homicides and the number of unsolved homicides (closed without arrest or open/no arrest)
+It has `r nrow(homicide_data)` rows and `r ncol(homicide_data)` columns. Each row provides information about the victim, location, reported date, and current status of the case. A majority of the variables, including age, are designated as characters but reported date is an integer while longitude and latitude are doubles. For some entries, the victim's race, age, and sex are unknown and values for latitude/longitude are missing. Out of the listed homicides, `r sum(homicide_data$disposition == "Closed by arrest")` are closed by an arrest, `r sum(homicide_data$disposition == "Closed without arrest")` are closed without an arrest, and `r sum(homicide_data$disposition == "Open/No arrest")` are open. 
+
+
+Once a city-state variable is created, the data related to the specific location is stored as a list in a variable.  
 
 ```{r}
 
@@ -83,13 +98,21 @@ tidy_homicide_data =
   mutate(total_homicides = as.integer(total_homicides),
          unsolved_homicides = as.integer(unsolved_homicides))
 
+tidy_homicide_data
+
+```
+
+There are `r nrow(tidy_homicide_data)` distinct city-states in the dataset. Note, one of the city-states is Tulsa, AL -- this is not an actual city (verified by the stated latitude and longitude coordinates). Since there is only one homicide "reported" in Tulsa, AL, this might simply be a recording error of the state. 
+
+```{r}
 tidy_homicide_data%>%
   select(-data)%>%
-  knitr::kable()
+  knitr::kable(col.names = c("City, State", "Total Homicides", "Unsolved Homicides"))
   
 ```
 
-Estimate proportions and confidence intervals of unsolved homicides in Baltimore, MD
+
+Estimating proportions and confidence intervals of unsolved homicides in Baltimore, MD
 
 ```{r}
 tidy_homicide_data%>%
@@ -99,36 +122,48 @@ tidy_homicide_data%>%
          proportion_test = map(proportion_test, broom::tidy))%>%
   unnest()%>%
   select(city_state, estimate, conf.low, conf.high)%>%
-  knitr::kable(digits = 3)
+  knitr::kable(digits = 3,
+               col.names = c("City, State", "Proportion of Unsolved Homicides", "Lower CI", "Upper CI"))
 
 ```
 
-Estimate proportions and confidence intervals of unsolved homicides in each city (TULSA, AL doesn't exist - take it out??)
+
+Estimating proportions and confidence intervals of unsolved homicides in each city
 
 ```{r}
 
 proportions = tidy_homicide_data%>%
   select(city_state, unsolved_homicides, total_homicides)%>%
+  filter(city_state != "Tulsa, AL")%>%
   mutate(proportion_test = map2(.x = unsolved_homicides, .y = total_homicides, ~prop.test(x = .x, n = .y)),
          proportion_test = map(proportion_test, broom::tidy))%>%
   unnest()%>%
   select(city_state, estimate, conf.low, conf.high)
 
 proportions%>%
-  knitr::kable(digits = 3)
+  knitr::kable(digits = 3,
+               col.names = c("City, State", "Proportion of Unsolved Homicides", "Lower CI", "Upper CI"))
  
 ```
 
-Create a plot that shows the proportion and CIs for each city
+
+Creating a plot that shows the proportion of unsolved homicides and confidence intervals for each city 
 
 ```{r}
 proportions%>%
-  filter(city_state != "Tulsa, AL")%>%
-  ggplot(aes(reorder(city_state, estimate), estimate))+
+  ggplot(aes(reorder(city_state, estimate), estimate, color = city_state))+
   geom_point()+
   geom_errorbar(aes(ymin = conf.low, ymax = conf.high))+
-  theme(
+  labs(
+    y = "Proportion Estimate",
+    x = "City, State",
+    title = "Proportion Estimates of Unsolved Homicides Across Cities") +
+  viridis::scale_color_viridis(discrete = TRUE)+
+  theme(legend.position="none", 
         axis.text.x = element_text(angle = 90, hjust = 1))
+
   
 ```
+
+From the plot above, Chicago has the highest proportion of unsolved homicides while Richmond has the lowest proportion of unsolved homicides. In addition, Chicago has the smallest range in its confidence interval. 
 
